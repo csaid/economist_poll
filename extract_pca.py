@@ -28,11 +28,11 @@ def preprocess(df):
                 'No Opinion',
                 'Did Not Answer',
                 None]
-    new_vals =  [-2,
+    new_vals =  [-1.5,
                  -1,
                  0,
                  1,
-                 2,
+                 1.5,
                  np.nan,
                  np.nan,
                  np.nan]
@@ -41,6 +41,7 @@ def preprocess(df):
 
     # Only retain responders with > 75% response rate
     num_questions = len(df.columns)
+
     df = df[df.count(axis=1) > (num_questions * 0.75)]
 
     # Replace remaining nans with the column mean
@@ -72,8 +73,12 @@ def main():
 
     # Run PCA and compute 2D projection
     evecs, evals = pca(X)
+    evecs = -evecs #so that physically left is politically left
     proj = np.dot(X, evecs[:, 0:2])
 
+    # Get correlation matrix
+    pc1_order = np.argsort(proj[:,0])
+    corr_mat = np.corrcoef(X[pc1_order,:])
 
     # User info dict
     user_info = {'name': 'You',
@@ -87,7 +92,8 @@ def main():
         responder_info = {'name': df.index[i],
                           'x': proj[i, 0],
                           'y': proj[i, 1],
-                          'responder_id': str(responder_id[i])}
+                          'responder_id': str(responder_id[i]),
+                          'pc1_order': int(np.argwhere(pc1_order==i)) }
         points.append(responder_info)
 
 
@@ -99,11 +105,14 @@ def main():
     out['xweights'] = list(evecs[:, 0])
     out['yweights'] = list(evecs[:, 1])
     out['X'] = [['%.2f' % el for el in row] for row in X.tolist()]
+    out['corr_mat'] = [['%.2f' % el for el in row] for row in corr_mat.tolist()]
     out['igm_top_range'] = ['%.2f' % el for el in igm_top_range]
     out['igm_bot_range'] = ['%.2f' % el for el in igm_bot_range]
 
-    for idx in np.argsort(out['yweights']).tolist():
+    for idx in np.argsort(out['xweights']).tolist():
         print(out['questions'][idx] + "\n")
+
+    print(len(X))
 
     # Write to file
     f = open("pca_results.json", "w")
