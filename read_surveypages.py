@@ -41,7 +41,7 @@ def main():
     # Loop through survey pages
     df = DataFrame()
     question_count = 0
-    for url in urls:
+    for url in reversed(urls):
 
         contents = get_page_contents(url)
 
