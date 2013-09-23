@@ -18,6 +18,7 @@ def pca(X):
 
     return evecs, evals
 
+
 def preprocess(df):
 
     old_vals = ['Strongly Disagree',
@@ -28,14 +29,14 @@ def preprocess(df):
                 'No Opinion',
                 'Did Not Answer',
                 None]
-    new_vals =  [-1.5,
-                 -1,
-                 0,
-                 1,
-                 1.5,
-                 np.nan,
-                 np.nan,
-                 np.nan]
+    new_vals = [-1.5,
+                -1,
+                0,
+                1,
+                1.5,
+                np.nan,
+                np.nan,
+                np.nan]
 
     df = df.replace(old_vals, new_vals)
 
@@ -48,6 +49,7 @@ def preprocess(df):
     df = df.fillna(df.mean())
 
     return df
+
 
 def main():
 
@@ -63,22 +65,22 @@ def main():
     responder_id = df['responder_id']
     del df['responder_id']
 
-    ## Compute +/- 2SD for each question *before* mean-centering.
+    # Compute +/- 2SD for each question *before* mean-centering.
     X = np.array(df)
-    igm_top_range = X.mean(axis=0) + 2*X.std(axis=0)
-    igm_bot_range = X.mean(axis=0) - 2*X.std(axis=0)
+    igm_top_range = X.mean(axis=0) + 2 * X.std(axis=0)
+    igm_bot_range = X.mean(axis=0) - 2 * X.std(axis=0)
 
     # Center data across columns. For PCA.
     X = X - np.reshape(X.mean(axis=1), (-1, 1))
 
     # Run PCA and compute 2D projection
     evecs, evals = pca(X)
-    evecs = -evecs #so that physically left is politically left
+    evecs = -evecs  # so that physically left is politically left
     proj = np.dot(X, evecs[:, 0:2])
 
     # Get correlation matrix
-    pc1_order = np.argsort(proj[:,0])
-    corr_mat = np.corrcoef(X[pc1_order,:])
+    pc1_order = np.argsort(proj[:, 0])
+    corr_mat = np.corrcoef(X[pc1_order, :])
 
     # User info dict
     user_info = {'name': 'You',
@@ -93,10 +95,8 @@ def main():
                           'x': proj[i, 0],
                           'y': proj[i, 1],
                           'responder_id': str(responder_id[i]),
-                          'pc1_order': int(np.argwhere(pc1_order==i)) }
+                          'pc1_order': int(np.argwhere(pc1_order == i))}
         points.append(responder_info)
-
-
 
     out = {}
     out['points'] = points
@@ -105,7 +105,8 @@ def main():
     out['xweights'] = list(evecs[:, 0])
     out['yweights'] = list(evecs[:, 1])
     out['X'] = [['%.2f' % el for el in row] for row in X.tolist()]
-    out['corr_mat'] = [['%.2f' % el for el in row] for row in corr_mat.tolist()]
+    out['corr_mat'] = [['%.2f' % el for el in row]
+                       for row in corr_mat.tolist()]
     out['igm_top_range'] = ['%.2f' % el for el in igm_top_range]
     out['igm_bot_range'] = ['%.2f' % el for el in igm_bot_range]
 
