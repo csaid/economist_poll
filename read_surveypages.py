@@ -4,7 +4,7 @@ import urllib2
 import re
 from unidecode import unidecode
 from pandas import DataFrame, Series
-
+from bs4 import BeautifulSoup
 
 def clean_string(s):
     ''' Remove junk characters from question string'''
@@ -13,7 +13,6 @@ def clean_string(s):
     s = re.sub(r"<[\s\S]*?>", "", s)
     s = re.sub(r"&nbsp;", " ", s)
     s = re.sub(r"<.*?>", "", s)
-    #s = re.sub(r"\"", "\\\"", s)
     s = ' '.join(s.split())
 
     return s
@@ -29,33 +28,50 @@ def get_page_contents(url):
     return contents
 
 
-def main():
+# Get links to survey pages
+home_url = "http://www.igmchicago.org/igm-economic-experts-panel"
+home_contents = get_page_contents(home_url)
+home_soup = BeautifulSoup(home_contents)
+meta = DataFrame()
+meta['url'] = ["http://www.igmchicago.org" + qtag.a.get('href') for qtag in home_soup.find_all("h2")]
+meta['year'] = [int(tag.text.split(',')[2].split(' ')[1]) for tag in home_soup.find_all("h6")]
+meta.ix[meta['year'] < 2013, 'year'] = 2013 # Count any question prior to 2013 as 2013
 
-    # Get links to survey pages
-    home_url = "http://www.igmchicago.org/igm-economic-experts-panel"
-    home_contents = get_page_contents(home_url)
-    urls = re.findall(
-        r"<h2><a href=\"(\S+?results\?SurveyID=\S+?)\"", home_contents)
-    urls = ["http://www.igmchicago.org" + url for url in urls]
 
-    # Loop through survey pages
+for year in [2013, 2014]:
+
     df = DataFrame()
     question_count = 0
+    urls = meta.query('year == @year')['url'].values
+
     for url in reversed(urls):
 
-        contents = get_page_contents(url)
 
-        questions = re.findall(r"surveyQuestion\">([\s\S]+?)</h3>", contents)
-        responder_list = re.findall(
-            r"\?id=([\d]+)?\">([\s\w.]+?)</a>", contents)
+        soup = BeautifulSoup(get_page_contents(url))
+        year = soup.h6.contents[0].split(',')[2].split(' ')[1]
 
-        responses = re.findall(
-            r"<span class=\"option-[\d]+?\">([\s\w.]+?)</span>", contents)
+        questions = [qtag.text for qtag in soup.find_all("h3", class_="surveyQuestion")]
+
+        response_tags = soup.find_all('tr', class_="parent-row")
+        responses, responders = [],[]
+        for response_tag in response_tags:
+            responder = (response_tag.a.get("href").split('=')[1], clean_string(response_tag.a.text))
+            response = clean_string(response_tag.span.text)
+            responders.append(responder)
+            responses.append(response)
+
+
         num_responders = len(responses) / len(questions)
 
         # Loop through sub-questions (A, B, etc) within each page
         for i, question in enumerate(questions):
+
+            # Clean out extraneous text from question.
             question = clean_string(question)
+            comment_idx = question.find('The experts panel previously voted')
+            if comment_idx >= 0:
+                question = question[0 : comment_idx - 1]
+
             question_count += 1
             print(question)
 
@@ -65,7 +81,7 @@ def main():
             # Collect sub-question, its url suffix, and the responses
             prefix = "(%03d" % question_count + ") "
             q_responses = Series(
-                responses[rng[0]:rng[1]], index=responder_list[rng[0]:rng[1]])
+                responses[rng[0]:rng[1]], index=responders[rng[0]:rng[1]])
             q_url_suffix = re.findall("=(.+)", url)[0]
             q_responses = q_responses.append(
                 Series([q_url_suffix], index=['q_url_suffix']))
@@ -74,13 +90,14 @@ def main():
             # Add question data to dataframe
             df = df.join(q_responses, how='outer')
 
+
     # Move responder id from index to column, only after all joins are complete
     df['responder_id'] = [pair[0] for pair in df.index]
     df.index = [pair[1] if type(pair) == tuple else pair for pair in df.index]
 
     # Write to file
-    df.to_json("survey_results.json")
+    df.to_json("survey_results_" + str(year) + ".json")
 
 
-if __name__ == "__main__":
-    main()
+
+

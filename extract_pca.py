@@ -6,11 +6,12 @@ import json
 import re
 from scipy.linalg import eig
 import matplotlib.pyplot as plt
+plt.ion()
 
 
 def pca(X):
     ''' Principal Components Analysis '''
-    cov_matrix = np.cov(X.T)
+    cov_matrix = np.cov(X.T) # Transpose b/c np.cov assumes row vars.
     evals, evecs = eig(cov_matrix)
     idcs = np.argsort(evals)[::-1]
     evecs = evecs.real[:, idcs]
@@ -28,12 +29,16 @@ def preprocess(df):
                 'Strongly Agree',
                 'No Opinion',
                 'Did Not Answer',
+                'Did Not Vote',
+                'Did not answer',
                 None]
     new_vals = [-1.5,
                 -1,
                 0,
                 1,
                 1.5,
+                np.nan,
+                np.nan,
                 np.nan,
                 np.nan,
                 np.nan]
@@ -51,10 +56,15 @@ def preprocess(df):
     return df
 
 
-def main():
+# Do a separate PCA for each year.
+for year in ['2013', '2014']:
 
     # Read data extracted
-    df = pd.read_json("survey_results.json")
+    df = pd.read_json("survey_results_" + year + ".json")
+
+    # Limit the number of questions.
+    if len(df.columns) > 41:
+        df = df[df.columns[0:40].tolist() + ['responder_id']]
 
     # Separate url suffixes from column names
     q_url_suffixes = list(df.ix['q_url_suffix', :])[:-1]
@@ -65,28 +75,39 @@ def main():
     responder_id = df['responder_id']
     del df['responder_id']
 
-    # Compute +/- 2SD for each question *before* mean-centering.
-    X = np.array(df)
-    igm_top_range = X.mean(axis=0) + 2 * X.std(axis=0)
-    igm_bot_range = X.mean(axis=0) - 2 * X.std(axis=0)
+    # Compute +/- 2SD for each question. For yellow highlights.
+    X_raw = np.array(df)
+    q_means = X_raw.mean(axis=0)
+    q_sds = X_raw.std(axis=0)
+    igm_top_range =    2 * q_sds # Responses will be centered with q_means in .js
+    igm_bot_range = (-2) * q_sds # Responses will be centered with q_means in .js
 
-    # Center data across columns. For PCA.
-    X = X - np.reshape(X.mean(axis=1), (-1, 1))
+    # Centering the questions
+    X = X_raw - X_raw.mean(axis=0)
 
     # Run PCA and compute 2D projection
     evecs, evals = pca(X)
-    evecs = -evecs  # so that physically left is politically left
-    proj = np.dot(X, evecs[:, 0:2])
 
-    # Get correlation matrix
-    pc1_order = np.argsort(proj[:, 0])
-    corr_mat = np.corrcoef(X[pc1_order, :])
+    # Sign flipping so politically left is on the left
+    if year == '2013':
+        evecs[:,0] = -evecs[:,0]
+        evecs[:,1] = -evecs[:,1]
+    if year == '2014':
+        evecs[:,0] = -evecs[:,0]
+        evecs[:,1] = -evecs[:,1]
+
+    # Compute each economists projection in 2D space.
+    proj = np.dot(X, evecs[:, 0:2])
 
     # User info dict
     user_info = {'name': 'You',
                  'x': 0,
                  'y': 0,
                  'responder_id': 0}
+
+    # Get correlation matrix, sorted by position on x-axis.
+    pc1_order = np.argsort(proj[:, 0])
+    corr_mat = np.corrcoef(X_raw[pc1_order, :])
 
     # List of responder info dicts, including user dict
     points = [user_info]
@@ -102,6 +123,7 @@ def main():
     out['points'] = points
     out['q_url_suffixes'] = q_url_suffixes
     out['questions'] = [re.sub(r"\(0+", "(", col) for col in df.columns]
+    out['q_means'] = list(q_means)
     out['xweights'] = list(evecs[:, 0])
     out['yweights'] = list(evecs[:, 1])
     out['X'] = [['%.2f' % el for el in row] for row in X.tolist()]
@@ -110,13 +132,9 @@ def main():
     out['igm_top_range'] = ['%.2f' % el for el in igm_top_range]
     out['igm_bot_range'] = ['%.2f' % el for el in igm_bot_range]
 
-    for idx in np.argsort(out['xweights']).tolist():
-        print(out['questions'][idx] + "\n")
-
-    print(len(X))
 
     # Write to file
-    f = open("pca_results.json", "w")
+    f = open("pca_results_" + year + ".json", "w")
     json.dump(out, f, indent=2)
     f.close()
 
@@ -125,5 +143,3 @@ def main():
     plt.scatter(proj[:, 0], proj[:, 1])
     plt.show()
 
-if __name__ == "__main__":
-    main()
