@@ -57,7 +57,7 @@ def preprocess(df):
 
 
 # Do a separate PCA for each year.
-for year in ['2013', '2014']:
+for year in ['2013', '2014', '2015']:
 
     # Read data extracted
     df = pd.read_json("survey_results_" + year + ".json")
@@ -94,6 +94,9 @@ for year in ['2013', '2014']:
         evecs[:,1] = -evecs[:,1]
     if year == '2014':
         evecs[:,0] = -evecs[:,0]
+        evecs[:,1] = -evecs[:,1]
+    if year == '2015':
+        evecs[:,0] = evecs[:,0]
         evecs[:,1] = -evecs[:,1]
 
     # Compute each economists projection in 2D space.

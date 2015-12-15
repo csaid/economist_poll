@@ -38,7 +38,7 @@ meta['year'] = [int(tag.text.split(',')[2].split(' ')[1]) for tag in home_soup.f
 meta.ix[meta['year'] < 2013, 'year'] = 2013 # Count any question prior to 2013 as 2013
 
 
-for year in [2013, 2014]:
+for year in [2015]:
 
     df = DataFrame()
     question_count = 0
