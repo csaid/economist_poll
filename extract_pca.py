@@ -66,6 +66,8 @@ for year in ['2013', '2014', '2015']:
     if len(df.columns) > 41:
         df = df[df.columns[0:40].tolist() + ['responder_id']]
 
+    import pdb; pdb.set_trace()
+
     # Separate url suffixes from column names
     q_url_suffixes = list(df.ix['q_url_suffix', :])[:-1]
     df = df.drop('q_url_suffix')
